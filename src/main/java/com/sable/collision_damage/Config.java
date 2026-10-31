@@ -9,6 +9,10 @@ public final class Config {
             .comment("Если выключенно, хрупкие блоки sable обрабатываются в этом аддоне ")
             .define("overrideSableFragileBlocks", false);
 
+    public static final ModConfigSpec.BooleanValue GLASS_BREAKAGE_DUE_TO_VIBRATION = BUILDER
+            .comment("Если включено, стекло, даже то каторое находится не в месте удара, разбивается при сильном ударе, радиус зависит от силы удара")
+            .define("glassBreakageDueToVibration", true);
+
     public static final ModConfigSpec.DoubleValue MIN_BREAK_SPEED = BUILDER
             .comment("Минимальная скорость")
             .defineInRange("minBreakSpeed", 15.0D, 0.0D, Double.MAX_VALUE);

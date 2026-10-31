@@ -40,31 +40,54 @@ public final class SablePreSolverDamage {
         flushPendingSlowdowns(event);
     }
 
-    private static void flushPendingBlockBreaks(final ForgeSablePostPhysicsTickEvent event) {
-        final ObjectArrayList<PendingBlockBreak> pendingBreaks = PENDING_BLOCK_BREAKS.remove(event.getPhysicsSystem());
-        if (pendingBreaks == null || pendingBreaks.isEmpty()) {
-            return;
+    private static void flushPendingBlockBreaks(ForgeSablePostPhysicsTickEvent event) {
+        ObjectArrayList<PendingBlockBreak> pendingBreaks = (ObjectArrayList)PENDING_BLOCK_BREAKS.remove(event.getPhysicsSystem());
+        if (pendingBreaks != null && !pendingBreaks.isEmpty()) {
+            ObjectOpenHashSet<PendingBlockBreakKey> processedBreaks = new ObjectOpenHashSet();
+            ObjectListIterator var3 = pendingBreaks.iterator();
+
+            while(var3.hasNext()) {
+                PendingBlockBreak pendingBreak = (PendingBlockBreak)var3.next();
+                CollisionTarget target = pendingBreak.target();
+                BlockPos hitPos = target.blockPos;
+                if (processedBreaks.add(new PendingBlockBreakKey(target.subLevel, hitPos)) && destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), target)) {
+                    SableImpactParticles.emitImpact(event.getPhysicsSystem().getLevel(), pendingBreak.originalState(), pendingBreak.globalHitPos(), pendingBreak.impactVelocity());
+                    ServerSubLevel slowdownTarget = target.subLevel != null ? target.subLevel : findIntersectingShip(event.getPhysicsSystem().getLevel(), pendingBreak.globalHitPos());
+                    queueSlowdown(event.getPhysicsSystem(), slowdownTarget, pendingBreak.globalHitPos());
+                }
+
+                boolean Vibration = (Boolean)Config.GLASS_BREAKAGE_DUE_TO_VIBRATION.get();
+                if (Vibration) {
+                    double impactVelocity = pendingBreak.impactVelocity;
+                    int radius = 1;
+                    if (impactVelocity > (double)10.0F) {
+                        radius = 2;
+                    }
+
+                    if (impactVelocity > (double)20.0F) {
+                        radius = 3;
+                    }
+
+                    if (impactVelocity > (double)40.0F) {
+                        radius = 5;
+                    }
+
+                    for(int x = -radius; x <= radius; ++x) {
+                        for(int y = -radius; y <= radius; ++y) {
+                            for(int z = -radius; z <= radius; ++z) {
+                                BlockPos currentPos = hitPos.offset(x, y, z);
+                                BlockState state = target.subLevel != null ? target.subLevel.getLevel().getBlockState(currentPos) : event.getPhysicsSystem().getLevel().getBlockState(currentPos);
+                                String blockName = state.getBlock().getDescriptionId().toLowerCase();
+                                if (blockName.contains("glass") && processedBreaks.add(new PendingBlockBreakKey(target.subLevel, currentPos))) {
+                                    destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), new CollisionTarget(target.subLevel, currentPos, state));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        final ObjectOpenHashSet<PendingBlockBreakKey> processedBreaks = new ObjectOpenHashSet<>();
-
-        for (final PendingBlockBreak pendingBreak : pendingBreaks) {
-            final CollisionTarget target = pendingBreak.target();
-            if (!processedBreaks.add(new PendingBlockBreakKey(target.subLevel(), target.blockPos()))) {
-                continue;
-            }
-
-            if (!destroyBlockFragileLike(event.getPhysicsSystem().getLevel(), target)) {
-                continue;
-            }
-
-            SableImpactParticles.emitImpact(event.getPhysicsSystem().getLevel(), pendingBreak.originalState(), pendingBreak.globalHitPos(), pendingBreak.impactVelocity());
-
-            final ServerSubLevel slowdownTarget = target.subLevel() != null
-                    ? target.subLevel()
-                    : findIntersectingShip(event.getPhysicsSystem().getLevel(), pendingBreak.globalHitPos());
-            queueSlowdown(event.getPhysicsSystem(), slowdownTarget, pendingBreak.globalHitPos());
-        }
     }
 
     private static void flushPendingSlowdowns(final ForgeSablePostPhysicsTickEvent event) {
